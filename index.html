@@ -1,0 +1,254 @@
+<html>
+<head>
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="utf-8">
+  <script>
+  var CLOSURE_NO_DEPS = true;
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils_3d/control_utils_3d.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
+  
+  
+  <!-- Require the peer dependencies of pose-detection. -->
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter"></script>
+
+<!-- You must explicitly require a TF.js backend if you're not using the TF.js union bundle. -->
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-tflite/dist/tf-tflite.min.js"></script>
+
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection"></script>
+  
+  <script type="module">
+const videoElement = document.getElementsByClassName('input_video')[0];
+const canvasElement = document.getElementsByClassName('output_canvas')[0];
+const canvasCtx = canvasElement.getContext('2d');
+const landmarkContainer = document.getElementsByClassName('landmark-grid-container')[0];
+const grid = new LandmarkGrid(landmarkContainer);
+var textElement = document.getElementById('text');
+var stanceListElement = document.getElementById('stanceList');
+var keypoints;
+var siteName = 'jukidostances'
+
+function onResults(results) {
+  if (!results.poseLandmarks) {
+    grid.updateLandmarks([]);
+    return;
+  }
+  
+  canvasElement.width = camera.h.width;
+  canvasElement.height = camera.h.height;
+
+  canvasCtx.save();
+  canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+  canvasCtx.drawImage(results.segmentationMask, 0, 0,
+                      canvasElement.width, canvasElement.height);
+
+  // Only overwrite existing pixels.
+  canvasCtx.globalCompositeOperation = 'source-in';
+  canvasCtx.fillStyle = '#00FF00';
+  canvasCtx.fillRect(0, 0, canvasElement.width, canvasElement.height);
+
+  // Only overwrite missing pixels.
+  canvasCtx.globalCompositeOperation = 'destination-atop';
+  canvasCtx.drawImage(
+      results.image, 0, 0, canvasElement.width, canvasElement.height);
+
+  canvasCtx.globalCompositeOperation = 'source-over';
+  drawConnectors(canvasCtx, results.poseLandmarks, POSE_CONNECTIONS,
+                 {color: '#00FF00', lineWidth: 4});
+  drawLandmarks(canvasCtx, results.poseLandmarks,
+                {color: '#FF0000', lineWidth: 2});
+  canvasCtx.restore();
+
+  grid.updateLandmarks(results.poseWorldLandmarks);
+  
+  keypoints = results.poseLandmarks;
+}
+
+function predictPose()
+{
+	if(typeof(keypoints) == 'undefined')
+		return;
+		
+	var modelInput = []
+	for(var i = 0; i<keypoints.length; i++){
+		var point = keypoints[i];
+		modelInput.push(point.x);
+		modelInput.push(point.y);
+		modelInput.push(point.z);
+		modelInput.push(point.visibility);
+	}
+	
+	// Run the inference.
+	var tensor = tf.tensor([modelInput]);
+	var labels = poseList;
+	var prediction = tfliteModel.predict(tensor);
+	
+	var predictions = [prediction.data()];
+	for(var i = 0; i<poseList.length; i++){
+		predictions.push(binaryModels[poseList[i]].predict(tensor).data());
+	}
+	
+	return Promise.all(predictions).then(function(results)
+	{
+		//console.log(result);
+		//Retrieve whichever prediction is the highest
+		var result = results[0];
+		var largest = -1
+		var largestIndex = -1;
+		for(var i = 0; i<result.length;i++){
+			if(largest < result[i])
+			{
+				largest = result[i];
+				largestIndex = i;
+			}
+		}
+		//textElement.textContent = labels[largestIndex] + " (" + Math.ceil(largest * 100) + "%)";
+		
+		//Check if the binary model agrees:
+		var count = 0;
+		var matches = false;
+		var matchValue;
+		for(var i = 0; i<poseList.length; i++){
+			result = results[i+1];
+			if(result[0] > 0.8)
+			{
+				if(i == largestIndex)
+				{
+					matches = true;
+					matchValue = result[0];
+				}
+				count++;
+			}
+		}
+		if(count > 1)//ambiguous result; more than one positive match
+		{
+			textElement.textContent = 'Ambiguous stance';
+		}
+		else if(!matches)
+		{
+			textElement.textContent = 'Unknown stance';
+		}
+		else {
+			textElement.textContent = labels[largestIndex] + " (" + Math.ceil(largest * 100) + "%)" + "[" + Math.ceil(matchValue * 100) + "%]";
+		}
+	});
+}
+
+const pose = new Pose({locateFile: (file) => {
+  return `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`;
+}});
+pose.setOptions({
+  modelComplexity: 1,
+  smoothLandmarks: true,
+  enableSegmentation: true,
+  smoothSegmentation: true,
+  minDetectionConfidence: 0.5,
+  minTrackingConfidence: 0.5
+});
+pose.onResults(onResults);
+
+const camera = new Camera(videoElement, {
+	onFrame: async () => {
+		await pose.send({image: videoElement});
+	},
+	width: 1280,
+	height: 720,
+	facingMode: {
+		ideal: 'user'
+	}
+});
+
+tflite.loadTFLiteModel('/'+siteName + '/pose_classifier_.tflite').then(function(model){
+	tfliteModel = model;
+});
+
+var tfliteModel; 
+var interval;
+export function runScript(){
+	camera.start();
+	
+	textElement.textContent = "Loading..."
+	
+	interval = setInterval(predictPose, 2000);
+}
+window.runScript=runScript;
+
+export function stopScript(){
+	camera.stop();
+	
+	clearInterval(interval);
+	
+	textElement.textContent = "This application requires the usage of your camera.  Click begin to turn on your camera.  This app does not upload any of your data.  All calculations are performed on the client."
+}
+window.stopScript=stopScript;
+
+export function changeFacing(value){
+	camera.stop();
+	camera.h.facingMode.ideal = value;
+	camera.start();
+}
+window.changeFacing=changeFacing;
+
+async function loadFile(url) {
+  try {
+    const response = await fetch(url);
+    const data = await response.text();
+	return data;
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+var poses = await loadFile('pose_labels_.txt');
+var poseList = poses.split('\r\n');
+
+stanceListElement.textContent = "Stances considered: " + poseList.join(', ');
+
+var binaryModels = {};
+for(var i = 0; i<poseList.length; i++)
+{
+	var modelLoader = function (modelName){
+		tflite.loadTFLiteModel('/'+siteName + '/pose_classifier_' + modelName + '.tflite').then(function(model){
+			binaryModels[modelName] = model;
+		});
+	}
+	
+	modelLoader(poseList[i]);
+}
+
+</script>
+
+<style>
+p, button, select {
+	font-size:32px
+}
+
+button, select {
+	width:49%;
+	height: 100px;
+}
+</style>
+
+</head>
+
+<body>
+	<button onClick="runScript()">Begin</button>
+	<button onClick="stopScript()">End</button>
+	<select onchange="changeFacing(this.options[this.selectedIndex].value)">
+		<option value="user">Front</option>
+		<option value="environment">Rear</option>
+	</select>
+	<div class="container">
+		<p id="stanceList">Stances considered: Kiba, Sanchin, Zenkutsu</p>
+		<p id="text">This application requires the usage of your camera.  Click begin to turn on your camera.  This app does not upload any of your data.  All calculations are performed on the client.</p>
+		<video class="input_video"></video>
+		<canvas class="output_canvas" height="1280px" width="720px"></canvas>
+		<div class="landmark-grid-container"></div>
+	</div>
+</body>
+</html>
