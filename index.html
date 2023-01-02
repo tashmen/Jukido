@@ -115,9 +115,9 @@ function predictPose()
 		var matchValue;
 		for(var i = 0; i<poseList.length; i++){
 			result = results[i+1];
-			if(result[0] > 0.8)
+			if(result[0] > 0.5)
 			{
-				if(i == largestIndex)
+				if(i == largestIndex && result[0] > 0.8)
 				{
 					matches = true;
 					matchValue = result[0];
@@ -127,11 +127,11 @@ function predictPose()
 		}
 		if(count > 1)//ambiguous result; more than one positive match
 		{
-			textElement.textContent = 'Ambiguous stance';
+			textElement.textContent = 'Ambiguous Stance';
 		}
 		else if(!matches)
 		{
-			textElement.textContent = 'Unknown stance';
+			textElement.textContent = 'Unknown Stance';
 		}
 		else {
 			textElement.textContent = labels[largestIndex] + " (" + Math.ceil(largest * 100) + "%)" + "[" + Math.ceil(matchValue * 100) + "%]";
