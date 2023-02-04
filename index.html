@@ -113,6 +113,7 @@ function predictPose()
 		var count = 0;
 		var matches = false;
 		var matchValue;
+		var stances = [];
 		for(var i = 0; i<poseList.length; i++){
 			result = results[i+1];
 			if(result[0] > 0.5)
@@ -122,16 +123,22 @@ function predictPose()
 					matches = true;
 					matchValue = result[0];
 				}
+				stances.push({index: i, value: result[0]});
 				count++;
 			}
 		}
 		if(count > 1)//ambiguous result; more than one positive match
 		{
-			textElement.textContent = 'Ambiguous Stance';
+			textElement.textContent = 'Ambiguous Stance '
+			for(var j = 0; j<stances.length; j++)
+			{
+				textElement.textContent += '\r\n' + labels[stances[j].index] + " (" + Math.ceil(stances[j].value * 100) + "%)";
+			}
+			textElement.textContent += '\r\n' + 'Predicted: ' + labels[largestIndex] + " (" + Math.ceil(largest * 100) + "%)"
 		}
 		else if(!matches)
 		{
-			textElement.textContent = 'Unknown Stance';
+			textElement.textContent = 'Unknown Stance.  Best guess: '  + labels[largestIndex] + " (" + Math.ceil(largest * 100) + "%)";
 		}
 		else {
 			textElement.textContent = labels[largestIndex] + " (" + Math.ceil(largest * 100) + "%)" + "[" + Math.ceil(matchValue * 100) + "%]";
@@ -232,6 +239,10 @@ button, select {
 	width:49%;
 	height: 100px;
 }
+.line-break{
+	white-space: pre;
+}
+
 </style>
 
 </head>
@@ -244,8 +255,8 @@ button, select {
 		<option value="environment">Rear</option>
 	</select>
 	<div class="container">
-		<p id="stanceList">Stances considered: Kiba, Sanchin, Zenkutsu</p>
-		<p id="text">This application requires the usage of your camera.  Click begin to turn on your camera.  This app does not upload any of your data.  All calculations are performed on the client.</p>
+		<p id="stanceList"></p>
+		<p id="text" class="line-break">This application requires the usage of your camera.  Click begin to turn on your camera.  This app does not upload any of your data.  All calculations are performed on the client.</p>
 		<video class="input_video"></video>
 		<canvas class="output_canvas" height="1280px" width="720px"></canvas>
 		<div class="landmark-grid-container"></div>
