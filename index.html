@@ -43,8 +43,8 @@ function onResults(results) {
     return;
   }
   
-  canvasElement.width = camera.h.width;
-  canvasElement.height = camera.h.height;
+  canvasElement.width = videoElement.videoWidth;
+  canvasElement.height = videoElement.videoHeight;
 
   canvasCtx.save();
   if(enableOverlay){
@@ -286,9 +286,8 @@ p, button, select, body {
 	font-size:32px
 }
 
-button, select {
-	width:48%;
-	height: 100px;
+.block{
+	display:block;
 }
 
 input, label {
@@ -307,6 +306,10 @@ input, label {
 	display: none;
 }
 
+#actions > * {
+	margin: 5px;
+}
+
 #stanceImage{
 	height: 1280px;
 	width: 720px;
@@ -321,14 +324,14 @@ input, label {
 		<button onClick="runScript()">Begin</button>
 		<button onClick="stopScript()">End</button>
 		<div id="cameraoptions">
-			<select onchange="changeFacing(this.options[this.selectedIndex].value)">
-				<option value="user">Front</option>
-				<option value="environment">Rear</option>
+			<select class="block" onchange="changeFacing(this.options[this.selectedIndex].value)">
+				<option value="user">Front Camera</option>
+				<option value="environment">Rear Camera</option>
 			</select>
 			<input type="checkbox" id="overlaycheckbox" onClick="toggleOverlay(this.checked)" value="1">
 			<label for="overlaycheckbox">Show Overlay</label><br>
 		</div>
-		<select onchange="changeMode(this.options[this.selectedIndex].value)">
+		<select class="block" onchange="changeMode(this.options[this.selectedIndex].value)">
 			<option value="tell">Tell - Predict the stance</option>
 			<option value="show">Show - Match the stance</option>
 		</select>
@@ -341,7 +344,7 @@ input, label {
 		<p id="text" class="line-break">This application requires the usage of your camera.  Click begin to turn on your camera.  This app does not upload any of your data.  All calculations are performed on the client.</p>
 		<img id="stanceImage" class="hidden"></img>
 		<video class="input_video hidden"></video>
-		<canvas class="output_canvas" height="1280px" width="720px"></canvas>
+		<canvas class="output_canvas"></canvas>
 		<div class="hidden landmark-grid-container"></div>
 	</div>
 </body>
