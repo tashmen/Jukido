@@ -5,11 +5,11 @@
   <script>
   var CLOSURE_NO_DEPS = true;
   </script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils_3d/control_utils_3d.js" crossorigin="anonymous"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3.1640029074/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils@0.6.1629159505/control_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils_3d@0.3.1635987963/control_utils_3d.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3.1620248257/drawing_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1635988162/pose.js" crossorigin="anonymous"></script>
   
   
   <!-- Require the peer dependencies of pose-detection. -->
@@ -32,6 +32,10 @@ var textElement = document.getElementById('text');
 var stanceListElement = document.getElementById('stanceList');
 var keypoints;
 var siteName = 'jukidostances'
+var enableOverlay = false;
+var stanceSelect = document.getElementById('stanceSelect');
+var stanceImage = document.getElementById('stanceImage');
+var appMode = 'tell';
 
 function onResults(results) {
   if (!results.poseLandmarks) {
@@ -43,28 +47,36 @@ function onResults(results) {
   canvasElement.height = camera.h.height;
 
   canvasCtx.save();
-  canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-  canvasCtx.drawImage(results.segmentationMask, 0, 0,
-                      canvasElement.width, canvasElement.height);
+  if(enableOverlay){
+	  canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+	  canvasCtx.drawImage(results.segmentationMask, 0, 0,
+						  canvasElement.width, canvasElement.height);
 
-  // Only overwrite existing pixels.
-  canvasCtx.globalCompositeOperation = 'source-in';
-  canvasCtx.fillStyle = '#00FF00';
-  canvasCtx.fillRect(0, 0, canvasElement.width, canvasElement.height);
+	  // Only overwrite existing pixels.
+	  canvasCtx.globalCompositeOperation = 'source-in';
+	  canvasCtx.fillStyle = '#00FF00';
+	  canvasCtx.fillRect(0, 0, canvasElement.width, canvasElement.height);
 
-  // Only overwrite missing pixels.
-  canvasCtx.globalCompositeOperation = 'destination-atop';
-  canvasCtx.drawImage(
+	  // Only overwrite missing pixels.
+	  canvasCtx.globalCompositeOperation = 'destination-atop';
+	  canvasCtx.drawImage(
       results.image, 0, 0, canvasElement.width, canvasElement.height);
 
-  canvasCtx.globalCompositeOperation = 'source-over';
-  drawConnectors(canvasCtx, results.poseLandmarks, POSE_CONNECTIONS,
-                 {color: '#00FF00', lineWidth: 4});
-  drawLandmarks(canvasCtx, results.poseLandmarks,
-                {color: '#FF0000', lineWidth: 2});
+  
+	  canvasCtx.globalCompositeOperation = 'source-over';
+	  drawConnectors(canvasCtx, results.poseLandmarks, POSE_CONNECTIONS,
+					 {color: '#00FF00', lineWidth: 4});
+	  drawLandmarks(canvasCtx, results.poseLandmarks,
+					{color: '#FF0000', lineWidth: 2});
+	  
+	  grid.updateLandmarks(results.poseWorldLandmarks);
+  }
+  else {
+	canvasCtx.drawImage(camera.video, 0, 0, canvasElement.width, canvasElement.height);
+  }
   canvasCtx.restore();
 
-  grid.updateLandmarks(results.poseWorldLandmarks);
+  
   
   keypoints = results.poseLandmarks;
 }
@@ -181,6 +193,8 @@ export function runScript(){
 	
 	textElement.textContent = "Loading..."
 	
+	if(typeof(interval) != 'undefined')
+		clearInterval(interval);
 	interval = setInterval(predictPose, 3000);
 }
 window.runScript=runScript;
@@ -191,6 +205,8 @@ export function stopScript(){
 	clearInterval(interval);
 	
 	textElement.textContent = "This application requires the usage of your camera.  Click begin to turn on your camera.  This app does not upload any of your data.  All calculations are performed on the client."
+	
+	canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
 }
 window.stopScript=stopScript;
 
@@ -200,6 +216,39 @@ export function changeFacing(value){
 	camera.start();
 }
 window.changeFacing=changeFacing;
+
+export function toggleOverlay(checked){
+	enableOverlay = checked;
+}
+window.toggleOverlay=toggleOverlay;
+
+export function changeMode(mode){
+	appMode = mode;
+	if(appMode == 'show'){
+		show(stanceSelect);
+		show(stanceImage);
+		hide(stanceList);
+		stanceSelection(stanceSelect.options[stanceSelect.selectedIndex].value)
+	}
+	else if(appMode == 'tell'){
+		hide(stanceSelect);
+		hide(stanceImage);
+		show(stanceList);
+	}
+}
+window.changeMode=changeMode;
+
+export function stanceSelection(stanceIndex){
+	stanceImage.src = "senseiStances/sensei_"+poseList[stanceIndex]+".jpg";
+}
+window.stanceSelection=stanceSelection;
+
+function show(element){
+	element.classList.remove('hidden');
+}
+function hide(element){
+	element.classList.add('hidden');
+}
 
 async function loadFile(url) {
   try {
@@ -226,21 +275,41 @@ for(var i = 0; i<poseList.length; i++)
 	}
 	
 	modelLoader(poseList[i]);
+	
+	stanceSelect.options[stanceSelect.options.length] = new Option(poseList[i], i);
 }
 
 </script>
 
 <style>
-p, button, select {
+p, button, select, body {
 	font-size:32px
 }
 
 button, select {
-	width:49%;
+	width:48%;
 	height: 100px;
 }
+
+input, label {
+	vertical-align: middle;
+}
+
 .line-break{
-	white-space: pre;
+	white-space: pre-wrap;
+}
+
+.landmark-grid-container {
+	height: 250px;
+}
+
+.hidden, .landmark-grid-container span{
+	display: none;
+}
+
+#stanceImage{
+	height: 1280px;
+	width: 720px;
 }
 
 </style>
@@ -248,18 +317,32 @@ button, select {
 </head>
 
 <body>
-	<button onClick="runScript()">Begin</button>
-	<button onClick="stopScript()">End</button>
-	<select onchange="changeFacing(this.options[this.selectedIndex].value)">
-		<option value="user">Front</option>
-		<option value="environment">Rear</option>
-	</select>
+	<div id="actions">
+		<button onClick="runScript()">Begin</button>
+		<button onClick="stopScript()">End</button>
+		<div id="cameraoptions">
+			<select onchange="changeFacing(this.options[this.selectedIndex].value)">
+				<option value="user">Front</option>
+				<option value="environment">Rear</option>
+			</select>
+			<input type="checkbox" id="overlaycheckbox" onClick="toggleOverlay(this.checked)" value="1">
+			<label for="overlaycheckbox">Show Overlay</label><br>
+		</div>
+		<select onchange="changeMode(this.options[this.selectedIndex].value)">
+			<option value="tell">Tell - Predict the stance</option>
+			<option value="show">Show - Match the stance</option>
+		</select>
+		<select id="stanceSelect" onchange="stanceSelection(this.options[this.selectedIndex].value)" class="hidden">
+		</select>
+	</div>
+	
 	<div class="container">
 		<p id="stanceList"></p>
 		<p id="text" class="line-break">This application requires the usage of your camera.  Click begin to turn on your camera.  This app does not upload any of your data.  All calculations are performed on the client.</p>
-		<video class="input_video"></video>
+		<img id="stanceImage" class="hidden"></img>
+		<video class="input_video hidden"></video>
 		<canvas class="output_canvas" height="1280px" width="720px"></canvas>
-		<div class="landmark-grid-container"></div>
+		<div class="hidden landmark-grid-container"></div>
 	</div>
 </body>
 </html>
