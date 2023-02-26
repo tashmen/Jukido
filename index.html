@@ -36,6 +36,8 @@ var enableOverlay = false;
 var stanceSelect = document.getElementById('stanceSelect');
 var stanceImage = document.getElementById('stanceImage');
 var appMode = 'tell';
+var showModeSelectedStance = 0;
+var showStanceCorrectCounter = 0;
 
 function onResults(results) {
   if (!results.poseLandmarks) {
@@ -139,21 +141,48 @@ function predictPose()
 				count++;
 			}
 		}
-		if(count > 1)//ambiguous result; more than one positive match
+		hideGreenBorder(stanceImage);
+		hideRedBorder(stanceImage);
+		hideYellowBorder(stanceImage);
+		if(appMode == 'tell')
 		{
-			textElement.textContent = 'Ambiguous Stance '
-			for(var j = 0; j<stances.length; j++)
+			if(count > 1)//ambiguous result; more than one positive match
 			{
-				textElement.textContent += '\r\n' + labels[stances[j].index] + " (" + Math.ceil(stances[j].value * 100) + "%)";
+				textElement.textContent = 'Ambiguous Stance '
+				for(var j = 0; j<stances.length; j++)
+				{
+					textElement.textContent += '\r\n' + labels[stances[j].index] + " (" + Math.ceil(stances[j].value * 100) + "%)";
+				}
+				textElement.textContent += '\r\n' + 'Predicted: ' + labels[largestIndex] + " (" + Math.ceil(largest * 100) + "%)"
 			}
-			textElement.textContent += '\r\n' + 'Predicted: ' + labels[largestIndex] + " (" + Math.ceil(largest * 100) + "%)"
+			else if(!matches)
+			{
+				textElement.textContent = 'Unknown Stance.  Best guess: '  + labels[largestIndex] + " (" + Math.ceil(largest * 100) + "%)";
+			}
+			else {
+				textElement.textContent = labels[largestIndex] + " (" + Math.ceil(largest * 100) + "%)" + "[" + Math.ceil(matchValue * 100) + "%]";
+			}
 		}
-		else if(!matches)
+		else
 		{
-			textElement.textContent = 'Unknown Stance.  Best guess: '  + labels[largestIndex] + " (" + Math.ceil(largest * 100) + "%)";
-		}
-		else {
-			textElement.textContent = labels[largestIndex] + " (" + Math.ceil(largest * 100) + "%)" + "[" + Math.ceil(matchValue * 100) + "%]";
+			if(count == 1 && matches && largestIndex == showModeSelectedStance){
+				showStanceCorrectCounter++;
+				textElement.textContent = labels[largestIndex] + " (" + Math.ceil(largest * 100) + "%)" + "[" + Math.ceil(matchValue * 100) + "%]";
+				if(Math.ceil(largest * 100) < 80){
+					textElement.textContent += '\r\n Match must be higher than 80%';
+					showYellowBorder(stanceImage);
+				}
+				else {
+					if(showStanceCorrectCounter > 2)
+						showGreenBorder(stanceImage);
+					else showYellowBorder(stanceImage);
+				}
+			}
+			else {
+				showStanceCorrectCounter = 0;
+				showRedBorder(stanceImage);
+				textElement.textContent = "Incorrect Stance!"
+			}
 		}
 	});
 }
@@ -195,7 +224,7 @@ export function runScript(){
 	
 	if(typeof(interval) != 'undefined')
 		clearInterval(interval);
-	interval = setInterval(predictPose, 3000);
+	interval = setInterval(predictPose, 2000);
 }
 window.runScript=runScript;
 
@@ -224,6 +253,7 @@ window.toggleOverlay=toggleOverlay;
 
 export function changeMode(mode){
 	appMode = mode;
+	textElement.textContent = "";
 	if(appMode == 'show'){
 		show(stanceSelect);
 		show(stanceImage);
@@ -240,6 +270,8 @@ window.changeMode=changeMode;
 
 export function stanceSelection(stanceIndex){
 	stanceImage.src = "senseiStances/sensei_"+poseList[stanceIndex]+".jpg";
+	showModeSelectedStance = stanceIndex;
+	showStanceCorrectCounter = 0;
 }
 window.stanceSelection=stanceSelection;
 
@@ -248,6 +280,24 @@ function show(element){
 }
 function hide(element){
 	element.classList.add('hidden');
+}
+function showGreenBorder(element){
+	element.classList.add('greenborder');
+}
+function hideGreenBorder(element){
+	element.classList.remove('greenborder');
+}
+function showRedBorder(element){
+	element.classList.add('redborder');
+}
+function hideRedBorder(element){
+	element.classList.remove('redborder');
+}
+function showYellowBorder(element){
+	element.classList.add('yellowborder');
+}
+function hideYellowBorder(element){
+	element.classList.remove('yellowborder');
 }
 
 async function loadFile(url) {
@@ -282,37 +332,50 @@ for(var i = 0; i<poseList.length; i++)
 </script>
 
 <style>
-p, button, select, body {
+#jukidostances p, #jukidostances button, #jukidostances select, #jukidostances{
 	font-size:32px
 }
 
-.block{
+#jukidostances .block{
 	display:block;
 }
 
-input, label {
+#jukidostances input, #jukidostances label {
 	vertical-align: middle;
 }
 
-.line-break{
+#jukidostances .line-break{
 	white-space: pre-wrap;
 }
 
-.landmark-grid-container {
+#jukidostances .landmark-grid-container {
 	height: 250px;
 }
 
-.hidden, .landmark-grid-container span{
+#jukidostances .hidden, #jukidostances .landmark-grid-container span{
 	display: none;
 }
 
-#actions > * {
+#jukidostances #actions > * {
 	margin: 5px;
 }
 
-#stanceImage{
+#jukidostances #stanceImage{
 	height: 1280px;
 	width: 720px;
+}
+
+#jukidostances .greenborder {
+	border: 20px solid;
+    border-color: green;
+}
+#jukidostances .redborder {
+	border: 20px solid;
+    border-color: red;
+}
+#jukidostances .yellowborder {
+	border: 20px solid;
+    border-color: yellow;
 }
 
 </style>
@@ -320,32 +383,34 @@ input, label {
 </head>
 
 <body>
-	<div id="actions">
-		<button onClick="runScript()">Begin</button>
-		<button onClick="stopScript()">End</button>
-		<div id="cameraoptions">
-			<select class="block" onchange="changeFacing(this.options[this.selectedIndex].value)">
-				<option value="user">Front Camera</option>
-				<option value="environment">Rear Camera</option>
+	<div id="jukidostances">
+		<div id="actions">
+			<button onClick="runScript()">Begin</button>
+			<button onClick="stopScript()">End</button>
+			<div id="cameraoptions">
+				<select class="block" onchange="changeFacing(this.options[this.selectedIndex].value)">
+					<option value="user">Front Camera</option>
+					<option value="environment">Rear Camera</option>
+				</select>
+				<input type="checkbox" id="overlaycheckbox" onClick="toggleOverlay(this.checked)" value="1">
+				<label for="overlaycheckbox">Show Overlay</label><br>
+			</div>
+			<select class="block" onchange="changeMode(this.options[this.selectedIndex].value)">
+				<option value="tell">Tell - Predict the stance</option>
+				<option value="show">Show - Match the stance</option>
 			</select>
-			<input type="checkbox" id="overlaycheckbox" onClick="toggleOverlay(this.checked)" value="1">
-			<label for="overlaycheckbox">Show Overlay</label><br>
+			<select id="stanceSelect" onchange="stanceSelection(this.options[this.selectedIndex].value)" class="hidden">
+			</select>
 		</div>
-		<select class="block" onchange="changeMode(this.options[this.selectedIndex].value)">
-			<option value="tell">Tell - Predict the stance</option>
-			<option value="show">Show - Match the stance</option>
-		</select>
-		<select id="stanceSelect" onchange="stanceSelection(this.options[this.selectedIndex].value)" class="hidden">
-		</select>
-	</div>
-	
-	<div class="container">
-		<p id="stanceList"></p>
-		<p id="text" class="line-break">This application requires the usage of your camera.  Click begin to turn on your camera.  This app does not upload any of your data.  All calculations are performed on the client.</p>
-		<img id="stanceImage" class="hidden"></img>
-		<video class="input_video hidden"></video>
-		<canvas class="output_canvas"></canvas>
-		<div class="hidden landmark-grid-container"></div>
+		
+		<div class="container">
+			<p id="stanceList"></p>
+			<p id="text" class="line-break">This application requires the usage of your camera.  Click begin to turn on your camera.  This app does not upload any of your data.  All calculations are performed on the client.</p>
+			<img id="stanceImage" class="hidden"></img>
+			<video class="input_video hidden"></video>
+			<canvas class="output_canvas"></canvas>
+			<div class="hidden landmark-grid-container"></div>
+		</div>
 	</div>
 </body>
 </html>

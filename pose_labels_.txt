@@ -1,4 +1,7 @@
+dai-kokutsu
 fudo
+gankaku
+hangetsu
 kake
 kiba
 kokutsu
@@ -7,4 +10,5 @@ neko-ashi
 sanchin
 seiko
 seoi-otoshi
+tsuru-ashi
 zenkutsu
