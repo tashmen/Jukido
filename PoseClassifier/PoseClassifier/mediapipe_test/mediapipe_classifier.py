@@ -1,12 +1,15 @@
 from mediapipe_common import *
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 
-#classes = ['', 'dai-kokutsu', 'fudo', 'gankaku', 'hangetsu', 'kake', 'kiba', 'kokutsu', 'musubi', 'neko-ashi', 'sanchin', 'seiko', 'seoi-otoshi', 'tsuru-ashi', 'zenkutsu']
+classes = ['', 'dai-kokutsu', 'fudo', 'gankaku', 'hangetsu', 'kake', 'kiba', 'kokutsu', 'musubi', 'neko-ashi', 'sanchin', 'seiko', 'seoi-otoshi', 'tsuru-ashi', 'zenkutsu']
 #classes = ['fudo', 'seiko', 'sanchin', 'zenkutsu']
-classes = ['']
-showPicture = True
+#classes = ['']
+showPicture = False
 
 for binaryClassName in classes:
+
+    isBinary = binaryClassName != ''
+
     # Output folders for bootstrapped images and CSVs.
     bootstrap_images_out_folder = 'E:/Jukido/Fun/Tensorflow/PythonScripts/jukido_stances_out'
     bootstrap_csvs_out_folder = bootstrap_images_out_folder
@@ -19,21 +22,23 @@ for binaryClassName in classes:
 
     inputs = tf.keras.Input(shape=(132))
     embedding = pose_embedder(inputs)
-
+    
     layer = keras.layers.Dense(1024, activation=tf.nn.relu6)(embedding)
     layer = keras.layers.Dropout(0.2)(layer)
     layer = keras.layers.Dense(512, activation=tf.nn.relu6)(layer)
     layer = keras.layers.Dropout(0.2)(layer)
-    #layer = keras.layers.Dense(128, activation=tf.nn.relu6)(layer)
-    #layer = keras.layers.Dropout(0.5)(layer)
     outputs = keras.layers.Dense(pose_loader.numberOfClasses, activation="softmax")(layer)
 
     model = keras.Model(inputs, outputs)
     model.summary()
 
+    if isBinary:
+        lossFunction = 'binary_crossentropy'
+    else:
+        lossFunction = 'categorical_crossentropy' 
     model.compile(
         optimizer='adam',
-        loss='categorical_crossentropy',
+        loss= lossFunction,
         metrics=['accuracy'],
         #run_eagerly=True
     )
@@ -47,7 +52,7 @@ for binaryClassName in classes:
                                  save_best_only=True,
                                  mode='max')
     earlystopping = keras.callbacks.EarlyStopping(monitor='val_accuracy', 
-                                                  patience=20)
+                                                  patience=50)
 
     # Start training
     history = model.fit(pose_loader.x_input, pose_loader.y_labels,
