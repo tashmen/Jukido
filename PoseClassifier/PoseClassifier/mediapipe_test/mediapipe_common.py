@@ -1,3 +1,5 @@
+import math
+from random import random
 import cv2
 from matplotlib import pyplot as plt
 import numpy as np
@@ -631,22 +633,32 @@ class PoseLoader(object):
     self.class_names = []
     y = []
 
+    for sample in self._pose_samples:
+        if className == '' or className != sample.class_name:
+            if len(classSamples) > 0:
+                self.class_names.append(className)
+                data.append(classSamples)
+                sampleCount.append(len(classSamples))
+                classSamples = []
+            className = sample.class_name
+
+        classSamples.append(np.append(np.transpose(sample.landmarks), sample.name));
+
+    self.class_names.append(className)
+    sampleCount.append(len(classSamples));
+    data.append(classSamples)
+
+    #calculate a class weighting that will provide higher weights to classes with lesser number of images to even them out
+    totalSamples = len(self._pose_samples)
+    self.class_weights = {}
+    i=0
+    for count in sampleCount:
+        self.class_weights[i] = totalSamples / (count * len(self.class_names))
+        i = i+1
+
+
+
     if binary_class_name == '':
-        for sample in self._pose_samples:
-            if className == '' or className != sample.class_name:
-                if len(classSamples) > 0:
-                    self.class_names.append(className)
-                    data.append(classSamples)
-                    sampleCount.append(len(classSamples))
-                    classSamples = []
-                className = sample.class_name
-
-            classSamples.append(np.transpose(sample.landmarks));
-
-        self.class_names.append(className)
-        sampleCount.append(len(classSamples));
-        data.append(classSamples)
-
         i = 0
         for count in sampleCount:
             y.append(np.full(count, i))
@@ -654,19 +666,46 @@ class PoseLoader(object):
 
         self.numberOfClasses = len(data)
         self.y_labels = keras.utils.to_categorical(np.concatenate(y));
-        self.x_input = np.concatenate(data)
+        finalData = np.concatenate(data)
+        self.imageNames = finalData[:, 132];
+        self.x_input = finalData[:, :132].astype(np.float32)
     else :
+        binaryIndex = self.class_names.index(binary_class_name)
+        countBinary = len(data[binaryIndex]) * 4 #select many images from the other categories as this one
+        totalCategories = len(data) - 1
+        imagesPerCategory = math.ceil(countBinary / totalCategories)
+        selectedSamples = []
+        i = 0
+        for listSamples in data:
+            if self.class_names[i] == binary_class_name:
+                selectedSamples.append(listSamples)
+                y.extend(np.full(len(listSamples), 0))
+            else:
+                randomSamples = random.sample(listSamples, min(imagesPerCategory, len(listSamples)))
+                selectedSamples.append(randomSamples)
+                y.extend(np.full(len(randomSamples), 1))
+            i = i + 1
+        data = selectedSamples
+            
         self.class_names = [binary_class_name, 'not ' + binary_class_name]
+        """
         for sample in self._pose_samples:
             data.append([np.transpose(sample.landmarks)])
             if binary_class_name == sample.class_name:
                 y.append(0)
             else :
                 y.append(1)
+        """
         self.numberOfClasses = 2
         self.y_labels = keras.utils.to_categorical(y)
-        self.x_input = np.concatenate(data)
-    
+        finalData = np.concatenate(data)
+        self.imageNames = finalData[:, 132];
+        self.x_input = finalData[:, :132].astype(np.float32)
+
+
+  def getImageName(self, index):
+      #find the image name that corresponds to the given index
+      return self.imageNames[index]
 
   def _load_pose_samples(self,
                          pose_samples_folder,

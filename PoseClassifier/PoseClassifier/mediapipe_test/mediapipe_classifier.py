@@ -1,10 +1,11 @@
 from mediapipe_common import *
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 
-classes = ['', 'dai-kokutsu', 'fudo', 'gankaku', 'hangetsu', 'kake', 'kiba', 'kokutsu', 'musubi', 'neko-ashi', 'sanchin', 'seiko', 'seoi-otoshi', 'tsuru-ashi', 'zenkutsu']
+#classes = ['', 'dai-kokutsu', 'fudo', 'gankaku', 'hangetsu', 'kake', 'kiba', 'kokutsu', 'musubi', 'neko-ashi', 'sanchin', 'seiko', 'seoi-otoshi', 'tsuru-ashi', 'zenkutsu']
+#classes = ['zenkutsu']
 #classes = ['fudo', 'seiko', 'sanchin', 'zenkutsu']
-#classes = ['']
-showPicture = False
+classes = ['']
+showPicture = True
 
 for binaryClassName in classes:
 
@@ -34,8 +35,10 @@ for binaryClassName in classes:
 
     if isBinary:
         lossFunction = 'binary_crossentropy'
+        metrics = ['binary_accuracy']
     else:
         lossFunction = 'categorical_crossentropy' 
+        metrics = ['accuracy']
     model.compile(
         optimizer='adam',
         loss= lossFunction,
@@ -52,12 +55,18 @@ for binaryClassName in classes:
                                  save_best_only=True,
                                  mode='max')
     earlystopping = keras.callbacks.EarlyStopping(monitor='val_accuracy', 
-                                                  patience=50)
+                                                  patience=20)
 
     # Start training
+    if isBinary:
+        class_weight = {0: 1.,
+                1: 4.}
+    else:
+        class_weights = pose_loader.class_weights
     history = model.fit(pose_loader.x_input, pose_loader.y_labels,
                         epochs=200,
                         batch_size=32,
+                        class_weight = class_weights,
                         validation_split=0.1,
                         callbacks=[checkpoint, earlystopping])
 
@@ -123,7 +132,7 @@ for binaryClassName in classes:
     for i, id_in_df in enumerate(false_predict):
         ax = fig.add_subplot(row_count, IMAGE_PER_ROW, i + 1)
         image_path = os.path.join(bootstrap_images_out_folder + "/test",
-                                    pose_loader_test._pose_samples[id_in_df].name)
+                                    pose_loader_test.getImageName(id_in_df))
 
         image = cv2.imread(image_path)
         plt.title("Predict: %s; Actual: %s" % (y_pred_label[id_in_df], y_true_label[id_in_df]))
