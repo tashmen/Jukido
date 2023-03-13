@@ -21,7 +21,7 @@ bootstrap_images_out_folder = 'E:/Jukido/Fun/Tensorflow/PythonScripts/jukido_sta
 bootstrap_csvs_out_folder = bootstrap_images_out_folder
 
 if split:
-    split_into_train_test(bootstrap_images_in_folder, bootstrap_images_out_folder, 0.1)
+    split_into_train_test(bootstrap_images_in_folder, bootstrap_images_out_folder, 0.25)
 
 # Initialize helper.
 train_folder = '/train'

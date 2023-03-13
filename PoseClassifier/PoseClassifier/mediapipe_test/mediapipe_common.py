@@ -437,12 +437,13 @@ class FullBodyPoseEmbedder(object):
 
     points = reshaped_inputs[:, :, :3]
     normalizedPoints = landmarks[:, :, :3]
+    """
     leftHip = tf.gather(points, self._landmark_names.index('left_hip'), axis=1)
     leftKnee = tf.gather(points, self._landmark_names.index('left_knee'), axis=1)
     leftAnkle = tf.gather(points, self._landmark_names.index('left_ankle'), axis=1) #reshaped_inputs[:,:26:27,:3]
     leftHeel = tf.gather(points, self._landmark_names.index('left_heel'), axis=1) #reshaped_inputs[:,:28:29,:3]
     leftFoot = tf.gather(points, self._landmark_names.index('left_foot_index'), axis=1) #reshaped_inputs[:,:30:31,:3]
-
+    
     leftFootAngle1 = self.compute_angle_between_3d_points(leftAnkle, leftHeel, leftFoot)
     #leftFootAngle1 = tf.keras.backend.print_tensor(leftFootAngle1, "leftFootAngle1=")
     leftFootAngle2 = self.compute_angle_between_3d_points(leftHeel, leftFoot, leftAnkle)
@@ -451,13 +452,13 @@ class FullBodyPoseEmbedder(object):
     leftKneeAngle1 = self.compute_angle_between_3d_points(leftKnee, leftAnkle, leftHip)
     leftKneeAngle2 = self.compute_angle_between_3d_points(leftAnkle, leftHip, leftKnee)
     leftKneeAngle3 = self.compute_angle_between_3d_points(leftHip, leftKnee, leftAnkle)
-
+    
     rightHip = tf.gather(points, self._landmark_names.index('right_hip'), axis=1)
     rightKnee = tf.gather(points, self._landmark_names.index('right_knee'), axis=1)
     rightAnkle = tf.gather(points, self._landmark_names.index('right_ankle'), axis=1) 
     rightHeel = tf.gather(points, self._landmark_names.index('right_heel'), axis=1) 
     rightFoot = tf.gather(points, self._landmark_names.index('right_foot_index'), axis=1) 
-
+    
     rightFootAngle1 = self.compute_angle_between_3d_points(rightAnkle, rightHeel, rightFoot)
     rightFootAngle2 = self.compute_angle_between_3d_points(rightHeel, rightFoot, rightAnkle)
     rightFootAngle3 = self.compute_angle_between_3d_points(rightFoot, rightAnkle, rightHeel)
@@ -465,7 +466,7 @@ class FullBodyPoseEmbedder(object):
     rightKneeAngle1 = self.compute_angle_between_3d_points(rightKnee, rightAnkle, rightHip)
     rightKneeAngle2 = self.compute_angle_between_3d_points(rightAnkle, rightHip, rightKnee)
     rightKneeAngle3 = self.compute_angle_between_3d_points(rightHip, rightKnee, rightAnkle)
-
+    
     
     leftKnee = tf.gather(normalizedPoints, self._landmark_names.index('left_knee'), axis=1)
     rightKnee = tf.gather(normalizedPoints, self._landmark_names.index('right_knee'), axis=1)
@@ -474,8 +475,10 @@ class FullBodyPoseEmbedder(object):
     kneeDistance = self.compute_distance(leftKnee, rightKnee)
     feetDistance = self.compute_distance(leftFoot, rightFoot)
     #kneeDistance = tf.keras.backend.print_tensor(kneeDistance, "KneeDistanceNorm:")
-
-    embedding = tf.keras.layers.Concatenate(axis=1)([embedding, feetDistance, kneeDistance, leftFootAngle1, leftFootAngle2, leftFootAngle3, rightFootAngle1, rightFootAngle2, rightFootAngle3, leftKneeAngle1, leftKneeAngle2, leftKneeAngle3, rightKneeAngle1, rightKneeAngle2, rightKneeAngle3])
+    """
+    #embedding = tf.keras.layers.Concatenate(axis=1)([embedding, feetDistance, kneeDistance])
+    #embedding = tf.keras.layers.Concatenate(axis=1)([embedding, feetDistance, kneeDistance, leftFootAngle1, leftFootAngle2, leftFootAngle3, rightFootAngle1, rightFootAngle2, rightFootAngle3, leftKneeAngle1, leftKneeAngle2, leftKneeAngle3, rightKneeAngle1, rightKneeAngle2, rightKneeAngle3])
+    
     #embedding = tf.keras.layers.Concatenate(axis=1)([embedding, leftFootAngle1])
     #embedding = keras.layers.Flatten()(embedding)
     return embedding

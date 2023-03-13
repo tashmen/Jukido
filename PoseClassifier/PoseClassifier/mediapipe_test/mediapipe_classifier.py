@@ -1,10 +1,13 @@
+from itertools import count
 from mediapipe_common import *
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 
 #classes = ['', 'dai-kokutsu', 'fudo', 'gankaku', 'hangetsu', 'kake', 'kiba', 'kokutsu', 'musubi', 'neko-ashi', 'sanchin', 'seiko', 'seoi-otoshi', 'tsuru-ashi', 'zenkutsu']
-#classes = ['zenkutsu']
+#classes = ['', 'dai-kokutsu']
 #classes = ['fudo', 'seiko', 'sanchin', 'zenkutsu']
+#classes = ['seiko', 'hangetsu', 'dai-kokutsu', 'neko-ashi']
 classes = ['']
+#showPicture = False
 showPicture = True
 
 for binaryClassName in classes:
@@ -20,14 +23,17 @@ for binaryClassName in classes:
 
     # loads the poses
     pose_loader = PoseLoader(pose_samples_folder=bootstrap_csvs_out_folder + '/train', binary_class_name=binaryClassName)
+    pose_loader_test = PoseLoader(pose_samples_folder=bootstrap_csvs_out_folder + '/test', binary_class_name=binaryClassName);
 
     inputs = tf.keras.Input(shape=(132))
     embedding = pose_embedder(inputs)
     
     layer = keras.layers.Dense(1024, activation=tf.nn.relu6)(embedding)
-    layer = keras.layers.Dropout(0.2)(layer)
+    layer = keras.layers.Dropout(0.5)(layer)
     layer = keras.layers.Dense(512, activation=tf.nn.relu6)(layer)
-    layer = keras.layers.Dropout(0.2)(layer)
+    layer = keras.layers.Dropout(0.5)(layer)
+    layer = keras.layers.Dense(256, activation=tf.nn.relu6)(layer)
+    layer = keras.layers.Dropout(0.5)(layer)
     outputs = keras.layers.Dense(pose_loader.numberOfClasses, activation="softmax")(layer)
 
     model = keras.Model(inputs, outputs)
@@ -59,7 +65,7 @@ for binaryClassName in classes:
 
     # Start training
     if isBinary:
-        class_weight = {0: 1.,
+        class_weights = {0: 1.,
                 1: 4.}
     else:
         class_weights = pose_loader.class_weights
@@ -67,7 +73,7 @@ for binaryClassName in classes:
                         epochs=200,
                         batch_size=32,
                         class_weight = class_weights,
-                        validation_split=0.1,
+                        validation_data = (pose_loader_test.x_input, pose_loader_test.y_labels),
                         callbacks=[checkpoint, earlystopping])
 
     # Visualize the training history to see whether you're overfitting.
@@ -80,8 +86,10 @@ for binaryClassName in classes:
     if showPicture:
         plt.show()
 
+    tf.saved_model.save(model, "keras_model_" + binaryClassName)
+
     converter = tf.lite.TFLiteConverter.from_keras_model(model)
-    converter.optimizations = [tf.lite.Optimize.DEFAULT]
+    #converter.optimizations = [tf.lite.Optimize.DEFAULT]
     tflite_model = converter.convert()
 
     print('Model size: %dKB' % (len(tflite_model) / 1024))
@@ -92,16 +100,35 @@ for binaryClassName in classes:
     with open('pose_labels_' + binaryClassName + '.txt', 'w') as f:
       f.write('\n'.join(pose_loader.class_names))
 
+    interpreter = tf.lite.Interpreter(model_content=tflite_model)
+    interpreter.allocate_tensors()
+    input_details = interpreter.get_input_details()
+    output_details = interpreter.get_output_details()
 
-
-    pose_loader_test = PoseLoader(pose_samples_folder=bootstrap_csvs_out_folder + '/test', binary_class_name=binaryClassName);
+    
     # Evaluate the model using the TEST dataset
     loss, accuracy = model.evaluate(pose_loader_test.x_input, pose_loader_test.y_labels)
 
     # Classify pose in the TEST dataset using the trained model
-    y_prediction = model.predict(pose_loader_test.x_input)
+    y_prediction_keras = model.predict(pose_loader_test.x_input)
+    y_prediction = []
+    countMatching = 0
+    for i in range(len(pose_loader_test.x_input)):
+        expected = y_prediction_keras[i]
+        interpreter.set_tensor(input_details[0]["index"], pose_loader_test.x_input[i:i+1, :])
+        interpreter.invoke()
+        result = interpreter.get_tensor(output_details[0]["index"])
+        y_prediction.append(result);
+        if np.argmax(expected) == np.argmax(result):
+            countMatching = countMatching + 1
+
+    y_prediction = np.array(y_prediction)
+    y_prediction = np.squeeze(y_prediction, axis=1)
+    print("Matching:", countMatching)
+    print("accuracy:", countMatching/len(pose_loader_test.x_input))
 
     # Convert the prediction result to class name
+    y_pred_label_keras = [pose_loader_test.class_names[i] for i in np.argmax(y_prediction_keras, axis=1)]
     y_pred_label = [pose_loader_test.class_names[i] for i in np.argmax(y_prediction, axis=1)]
     y_true_label = [pose_loader_test.class_names[i] for i in np.argmax(pose_loader_test.y_labels, axis=1)]
 
@@ -109,16 +136,25 @@ for binaryClassName in classes:
     cm = confusion_matrix(np.argmax(pose_loader_test.y_labels, axis=1), np.argmax(y_prediction, axis=1))
     plot_confusion_matrix(cm,
                           pose_loader_test.class_names,
-                          title ='Confusion Matrix of Pose Classification Model')
+                          title ='Confusion Matrix of Pose Classification Model tflite')
+
+    plt.figure()
+    cm_keras = confusion_matrix(np.argmax(pose_loader_test.y_labels, axis=1), np.argmax(y_prediction_keras, axis=1))
+    plot_confusion_matrix(cm_keras,
+                          pose_loader_test.class_names,
+                          title ='Confusion Matrix of Pose Classification Model keras')
 
     # Print the classification report
-    print('\nClassification Report:\n', classification_report(y_true_label,
+    print('\nClassification Report tflite:\n', classification_report(y_true_label,
                                                               y_pred_label))
+
+    print('\nClassification Report keras:\n', classification_report(y_true_label,
+                                                              y_pred_label_keras))
 
 
   
-    IMAGE_PER_ROW = 3
-    MAX_NO_OF_IMAGE_TO_PLOT = 30
+    IMAGE_PER_ROW = 4
+    MAX_NO_OF_IMAGE_TO_PLOT = 12
 
     # Extract the list of incorrectly predicted poses
     false_predict = [id_in_df for id_in_df in range(len(pose_loader_test.y_labels)) \
